@@ -1,13 +1,17 @@
+"""
+Updates semantic version numbers.
+"""
+
 import configparser
+import logging
+import sys
 from dataclasses import dataclass
 from enum import Enum
-import logging
 from pathlib import Path
-import sys
-from rich import print
 from typing import List, Union
 
 import typer
+from rich import print as rprint
 
 app = typer.Typer()
 logging.basicConfig(level=logging.DEBUG)
@@ -21,9 +25,9 @@ class VersionParts(Enum):
     Enum representing version parts: major, minor, and patch.
     """
 
-    major = "major"
-    minor = "minor"
-    patch = "patch"
+    MAJOR = "major"
+    MINOR = "minor"
+    PATCH = "patch"
 
 
 @dataclass
@@ -62,7 +66,7 @@ class Version:
         if isinstance(version_file, str):
             version_file = Path("version_file")
         if version_file.exists():
-            with open(version_file, "r") as file:
+            with open(version_file, "r", encoding="utf-8") as file:
                 version_str = file.read()
             return version_str.strip()
         # Try parsing pyproject.toml file if no version file is found
@@ -71,27 +75,32 @@ class Version:
         return version_str.replace('"', "")
 
     def _parse_split_versions(self, version_str: str) -> List[int]:
-        version = [v for v in version_str.split(".")]
+        """Split sub-versions to list of integers."""
+        version = version_str.split(".")
         assert len(version) == 3, "format of the version must be x.y.z"
         try:
             return [int(v) for v in version]
         except ValueError:
-            logger.exception(f"Cannot convert parts to integers {version_str}")
+            logger.exception("Cannot convert parts to integers %s", version_str)
             sys.exit()
 
     def upgrade_major(self) -> None:
+        """Bump up the major version."""
         self.major += 1
         self.minor = 0
         self.patch = 0
 
     def upgrade_minor(self) -> None:
+        """Bump up the minor version."""
         self.minor += 1
         self.patch = 0
 
     def upgrade_patch(self) -> None:
+        """Bump up the patch version."""
         self.patch += 1
 
     def bump(self, subtype):
+        """Checks which version should be bumped."""
         if subtype == "major":
             self.upgrade_major()
         if subtype == "minor":
@@ -100,21 +109,23 @@ class Version:
             self.upgrade_patch()
 
     def update_file(self, version_file: Union[str, Path]) -> None:
+        """Update file with new version."""
         if isinstance(version_file, str):
             version_file = Path(version_file)
         if version_file.exists():
-            with open(version_file, "w") as file:
+            with open(version_file, "w", encoding="utf-8") as file:
                 file.write(self.version)
         elif Path("pyproject.toml").exists():
             config.read("pyproject.toml")
             config["tool.poetry"]["version"] = self.version
-            with open("pyproject.toml", "w") as configfile:
+            with open("pyproject.toml", "w", encoding="utf-8") as configfile:
                 config.write(configfile)
         else:
             raise FileNotFoundError("No file to write version to.")
 
     @property
     def version(self) -> str:
+        """Get the version."""
         return f"{self.major}.{self.minor}.{self.patch}"
 
 
@@ -125,7 +136,8 @@ def get_version(version_file: str = "VERSION"):
     """
     version = Version()
     version.from_file(version_file)
-    print(f"VERSION: {version.version}")
+    rprint(f"VERSION: {version.version}")
+    return version.version
 
 
 @app.command()
@@ -141,7 +153,7 @@ def bump_version(bump: VersionParts, version_file: str = "VERSION"):
     older_version = version.version
     version.bump(bump.value)
     version.update_file(version_file)
-    print(f"Bumped up from {older_version} ---> {version.version}")
+    rprint(f"Bumped up from {older_version} ---> {version.version}")
     return version.version
 
 
