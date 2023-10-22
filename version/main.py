@@ -15,10 +15,12 @@ logger = logging.getLogger(__name__)
 
 config = configparser.ConfigParser()
 
+
 class VersionParts(Enum):
     """
     Enum representing version parts: major, minor, and patch.
     """
+
     major = "major"
     minor = "minor"
     patch = "patch"
@@ -29,6 +31,7 @@ class Version:
     """
     Represents a version with major, minor, and patch components.
     """
+
     major: int = 0
     minor: int = 0
     patch: int = 0
@@ -110,11 +113,9 @@ class Version:
         else:
             raise FileNotFoundError("No file to write version to.")
 
-
     @property
     def version(self) -> str:
         return f"{self.major}.{self.minor}.{self.patch}"
-
 
 
 @app.command()
@@ -141,6 +142,7 @@ def bump_version(bump: VersionParts, version_file: str = "VERSION"):
     version.bump(bump.value)
     version.update_file(version_file)
     print(f"Bumped up from {older_version} ---> {version.version}")
+    return version.version
 
 
 if __name__ == "__main__":
