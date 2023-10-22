@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "version"
+version = "0.1.0"
+description = "Handle semantic versioning of projects."
+authors = ["MondeSinxi <monde.sinxi@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.scripts]
+version = "version.main:app"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+typer = {extras = ["all"], version = "^0.9.0"}
+black = "^23.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
