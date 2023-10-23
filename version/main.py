@@ -8,7 +8,7 @@ import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import List, Union
+from typing import List, Optional
 
 import typer
 from rich import print as rprint
@@ -16,8 +16,6 @@ from rich import print as rprint
 app = typer.Typer()
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
-
-config = configparser.ConfigParser()
 
 
 class VersionParts(Enum):
@@ -40,20 +38,24 @@ class Version:
     minor: int = 0
     patch: int = 0
 
-    def from_file(self, version_file: str | Path) -> None:
+    def from_file(
+        self, version_file: Optional[str] = None, pyproject_file: Optional[str] = None
+    ) -> None:
         """
         Load version components from a file.
 
         Args:
-            file (str | Path): Path to the version file.
+            file (str): Path to the version file.
 
         Raises:
             FileNotFoundError: If the specified file is not found.
         """
-        version_str = self.get_version_str(version_file)
+        version_str = self.get_version_str(version_file, pyproject_file)
         self.major, self.minor, self.patch = self._parse_split_versions(version_str)
 
-    def get_version_str(self, version_file: Path | str) -> str:
+    def get_version_str(
+        self, version_file: Optional[str] = None, pyproject_file: Optional[str] = None
+    ) -> str:
         """
         Parses a file to get the version string representasion
 
@@ -63,21 +65,33 @@ class Version:
         Returns:
             str
         """
-        if isinstance(version_file, str):
-            version_file = Path("version_file")
-        if version_file.exists():
-            with open(version_file, "r", encoding="utf-8") as file:
-                version_str = file.read()
-            return version_str.strip()
-        # Try parsing pyproject.toml file if no version file is found
-        config.read("pyproject.toml")
-        version_str = config["tool.poetry"]["version"]
+        if version_file:
+            version_file_path = Path(version_file)
+            if version_file_path.exists():
+                with open(version_file_path, "r", encoding="utf-8") as file:
+                    version_str = file.read()
+                return version_str.strip()
+        if pyproject_file:
+            return self.get_version_from_toml(pyproject_file)
+        raise FileNotFoundError("No files with version found.")
+
+    def get_version_from_toml(self, pyproject_file: str) -> str:
+        """Get version from toml file."""
+        config = configparser.ConfigParser()
+        config.read(pyproject_file)
+        try:
+            version_str = config["tool.poetry"]["version"]
+        except KeyError:
+            logger.exception("Could not ger version from pyproject")
+            sys.exit()
         return version_str.replace('"', "")
 
     def _parse_split_versions(self, version_str: str) -> List[int]:
         """Split sub-versions to list of integers."""
         version = version_str.split(".")
-        assert len(version) == 3, "format of the version must be x.y.z"
+        assert (
+            len(version) == 3
+        ), f"format of the version must be x.y.z, got {version_str}"
         try:
             return [int(v) for v in version]
         except ValueError:
@@ -108,20 +122,23 @@ class Version:
         if subtype == "patch":
             self.upgrade_patch()
 
-    def update_file(self, version_file: Union[str, Path]) -> None:
+    def update_file(
+        self, version_file: Optional[str] = None, pyproject_file: Optional[str] = None
+    ) -> None:
         """Update file with new version."""
-        if isinstance(version_file, str):
-            version_file = Path(version_file)
-        if version_file.exists():
-            with open(version_file, "w", encoding="utf-8") as file:
-                file.write(self.version)
-        elif Path("pyproject.toml").exists():
-            config.read("pyproject.toml")
-            config["tool.poetry"]["version"] = self.version
-            with open("pyproject.toml", "w", encoding="utf-8") as configfile:
-                config.write(configfile)
-        else:
-            raise FileNotFoundError("No file to write version to.")
+        if version_file is not None:
+            version_file_path = Path(version_file)
+            if version_file_path.exists():
+                with open(version_file_path, "w", encoding="utf-8") as file:
+                    file.write(self.version)
+        if pyproject_file is not None:
+            if Path(pyproject_file).exists():
+                config = configparser.ConfigParser()
+                config.read(pyproject_file)
+                config["tool.poetry"]["version"] = self.version
+                with open(pyproject_file, "w", encoding="utf-8") as configfile:
+                    version_str = f'"{self.version}"'
+                    configfile.write(version_str)
 
     @property
     def version(self) -> str:
@@ -130,32 +147,39 @@ class Version:
 
 
 @app.command()
-def get_version(version_file: str = "VERSION"):
+def get_version(
+    version_file: Optional[str] = None, pyproject_file: Optional[str] = None
+):
     """
     Command to get the current version and display it.
     """
+    if version_file is None and pyproject_file is None:
+        raise FileNotFoundError("pyproject.yml  or version file not found.")
     version = Version()
-    version.from_file(version_file)
+    version.from_file(version_file, pyproject_file)
     rprint(f"VERSION: {version.version}")
     return version.version
 
 
 @app.command()
-def bump_version(bump: VersionParts, version_file: str = "VERSION"):
+def bump_version(
+    bump: VersionParts,
+    version_file: Optional[str] = None,
+    pyproject_file: Optional[str] = None,
+) -> str:
     """
     Command to bump the specified version part (major, minor, or patch).
 
     Args:
         bump (VersionParts): Enum representing the version part to be bumped.
     """
+    if version_file is None and pyproject_file is None:
+        raise FileNotFoundError("pyproject.yml  or version file not found.")
     version = Version()
-    version.from_file(version_file)
+    version.from_file(version_file, pyproject_file)
     older_version = version.version
     version.bump(bump.value)
-    version.update_file(version_file)
+    if version_file or pyproject_file:
+        version.update_file(version_file, pyproject_file)
     rprint(f"Bumped up from {older_version} ---> {version.version}")
     return version.version
-
-
-if __name__ == "__main__":
-    app()
