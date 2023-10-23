@@ -26,7 +26,7 @@ jobs:
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
-      - name install dependencies if no cache
+      - name: install dependencies if no cache
         run: poetry install --no-interaction --no-root
         if: steps.cached-poetry-depencies.outputs.cache-hit != 'true'
       - name: Install the root project
