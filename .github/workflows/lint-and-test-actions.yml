@@ -1,0 +1,43 @@
+name: lint-and-test
+run-name: ${{ github.actor }}
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install poetry
+        uses: snok/install-poetry@v1
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      - name: install dependencies if no cache
+        run: poetry install --no-interaction --no-root
+        if: steps.cached-poetry-depencies.outputs.cache-hit != 'true'
+      - name: Install the root project
+        run: poetry install --no-interaction
+      - name: Lint with pylint
+        run: |
+          source .venv/bin/activate
+          pylint version
+      - name: Static type checking
+        run: poetry run mypy version
+      - name: Run tests and coverage
+        run: |
+          poetry run coverage run -m pytest -v tests/
+          poetry run coverage report --fail-under=95
