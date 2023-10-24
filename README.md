@@ -1,5 +1,7 @@
 # Version Bump Tool
 
+![tests](https://github.com/MondeSinxi/version/actions/workflows/lint-and-test-actions.yml/badge.svg)
+
 A tool for bumping up [semantic versions](https://semver.org/).
 
 ## Installation
